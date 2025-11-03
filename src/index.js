@@ -84,7 +84,7 @@ const Root = () => {
               exact
               path="/discord"
               component={() => {
-                window.location.href = 'https://discord.gg/KjPHFw8';
+                window.location.href = 'https://discord.gg/cncyyVE8QM';
                 return null;
               }}
             />

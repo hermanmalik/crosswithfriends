@@ -11,12 +11,12 @@ export const WelcomeVariantsControl: React.FC<{
   const classes = useStyles();
   const showFencingInfo = () => {
     swal({
-      title: 'downforacross.com/fencing',
+      title: 'crosswithfriends.com/fencing',
       icon: 'info',
       content: (
         <div className="swal-text swal-text--no-margin">
           <p>
-            Fencing is a variant of Down for a Cross where you can race to complete a crossword against
+            Fencing is a variant of Cross with Friends where you can race to complete a crossword against
             friends in real time.
             <br />
             <br />
@@ -25,7 +25,7 @@ export const WelcomeVariantsControl: React.FC<{
             <br />
             <span style={{fontSize: '75%', color: 'gray'}}>
               Join the&nbsp;
-              <a href="https://discord.gg/KjPHFw8" target="_blank" rel="noreferrer">
+              <a href="https://discord.gg/cncyyVE8QM" target="_blank" rel="noreferrer">
                 community Discord
               </a>
               &nbsp;for more discussion.
