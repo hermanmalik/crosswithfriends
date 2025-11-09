@@ -7,20 +7,22 @@
 # ============================================================================
 FROM node:20-alpine AS dependencies
 
-# Install security updates and dumb-init for proper signal handling
+# Install security updates, dumb-init, and yarn
 RUN apk update && \
     apk upgrade && \
     apk add --no-cache dumb-init && \
+    corepack enable && \
+    corepack prepare yarn@stable --activate && \
     rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
-# Copy package files first for better layer caching
-COPY package.json package-lock.json* ./
+# Copy package files and yarn config first for better layer caching
+COPY package.json yarn.lock .yarnrc.yml ./
 
 # Install only production dependencies
-RUN npm ci --only=production --ignore-scripts && \
-    npm cache clean --force && \
+RUN yarn install --immutable  && \
+    yarn cache clean && \
     rm -rf /tmp/*
 
 # ============================================================================
@@ -28,13 +30,17 @@ RUN npm ci --only=production --ignore-scripts && \
 # ============================================================================
 FROM node:20-alpine AS build
 
+# Enable yarn
+RUN corepack enable && \
+    corepack prepare yarn@stable --activate
+
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Copy package files and yarn config
+COPY package.json yarn.lock .yarnrc.yml ./
 
 # Install all dependencies (including dev dependencies for TypeScript)
-RUN npm ci && npm cache clean --force
+RUN yarn install --immutable && yarn cache clean
 
 # Copy server source code and shared dependencies
 COPY server/ ./server/
@@ -87,5 +93,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the server using ts-node
-CMD ["node", "-r", "ts-node/register", "-P", "server/tsconfig.json", "server/server.ts"]
+CMD ["ts-node", "-P", "server/tsconfig.json", "server/server.ts"]
 

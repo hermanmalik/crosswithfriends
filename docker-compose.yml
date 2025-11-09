@@ -1,12 +1,10 @@
-version: '3.8'
-
+---
 services:
   backend:
     build:
       context: .
       dockerfile: server/Dockerfile
       target: production
-    image: crosswithfriends-backend:latest
     container_name: crosswithfriends-backend
     restart: unless-stopped
     ports:
@@ -14,18 +12,17 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # PostgreSQL connection variables
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-crosswithfriends}
       # Add other environment variables as needed
-      # - DATABASE_URL=${DATABASE_URL}
       # - REDIS_URL=${REDIS_URL}
-    env_file:
-      - .env.production
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    # Resource limits (adjust based on your needs)
+    # Resource limits
     deploy:
       resources:
         limits:
@@ -38,12 +35,38 @@ services:
     security_opt:
       - no-new-privileges:true
     # Read-only root filesystem (if your app doesn't need to write to filesystem)
-    # read_only: true
-    # tmpfs:
-    #   - /tmp
-    #   - /var/tmp
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
     networks:
       - app-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18
+    container_name: crosswithfriends-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-crosswithfriends}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/18/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
 
 networks:
   app-network:
