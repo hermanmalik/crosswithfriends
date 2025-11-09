@@ -17,14 +17,14 @@ package-lock.json
 .yarn/install-state.gz
 
 # dependencies
-/node_modules
+node_modules
 
 # testing
-/coverage
-/server/coverage
+coverage
+server/coverage
 
 # production
-/build
+build
 
 # misc
 .DS_Store
@@ -47,3 +47,5 @@ backfills/*.json
 .env.staging
 
 .vercel
+
+dist/

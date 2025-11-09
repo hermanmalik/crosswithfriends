@@ -1,53 +1,17 @@
-import fastify from 'fastify';
+import fastify, {FastifyError, FastifyRequest, FastifyReply, FastifyInstance} from 'fastify';
 import cors from '@fastify/cors';
-import socketIo from 'socket.io';
+import {Server as SocketIOServer} from 'socket.io';
+import {Server as HTTPServer} from 'http';
 import _ from 'lodash';
 import SocketManager from './SocketManager';
 import apiRouter from './api/router';
 
 const port = process.env.PORT || 3000;
 
-// ======== Fastify Server Config ==========
-
-const app = fastify({
-  logger:
-    process.env.NODE_ENV === 'production'
-      ? {
-          level: 'info',
-        }
-      : {
-          level: 'debug',
-        },
-});
-
-// Set custom error handler
-app.setErrorHandler((error, request, reply) => {
-  request.log.error(error);
-
-  // Handle validation errors
-  if (error.validation) {
-    reply.code(400).send({
-      statusCode: 400,
-      error: 'Bad Request',
-      message: 'Validation error',
-      validation: error.validation,
-    });
-    return;
-  }
-
-  // Handle errors with status codes
-  const statusCode = error.statusCode || 500;
-  reply.code(statusCode).send({
-    statusCode,
-    error: error.name || 'Internal Server Error',
-    message: error.message || 'An error occurred',
-  });
-});
-
 // ================== Logging ================
 
-function logAllEvents(io: socketIo.Server, log: typeof console.log) {
-  io.on('*', (event: any, ...args: any) => {
+function logAllEvents(io: SocketIOServer, log: typeof console.log): void {
+  io.on('*', (event: string, ...args: unknown[]) => {
     try {
       log(`[${event}]`, _.truncate(JSON.stringify(args), {length: 100}));
     } catch (e) {
@@ -60,6 +24,46 @@ function logAllEvents(io: socketIo.Server, log: typeof console.log) {
 
 async function runServer() {
   try {
+    // ======== Fastify Server Config ==========
+    // In Fastify v5, fastify() returns PromiseLike<FastifyInstance>
+    // The methods are available immediately, but TypeScript types need help
+    const app = fastify({
+      logger:
+        process.env.NODE_ENV === 'production'
+          ? {
+              level: 'info',
+            }
+          : {
+              level: 'debug',
+            },
+    }) as unknown as FastifyInstance;
+
+    // Set custom error handler
+    app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
+      request.log.error(error);
+
+      // Handle validation errors
+      if (error.validation) {
+        reply.code(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Validation error',
+          validation: error.validation,
+        });
+        return;
+      }
+
+      // Handle errors with status codes
+      const statusCode = error.statusCode || 500;
+      // Use 'Internal Server Error' if name is missing, undefined, or is the default 'Error'
+      const errorName = error.name && error.name !== 'Error' ? error.name : 'Internal Server Error';
+      reply.code(statusCode).send({
+        statusCode,
+        error: errorName,
+        message: error.message || 'An error occurred',
+      });
+    });
+
     // Register CORS plugin
     await app.register(cors, {
       origin: true,
@@ -70,8 +74,8 @@ async function runServer() {
 
     // Initialize Socket.IO after server is ready but before listening
     app.addHook('onReady', () => {
-      const server = app.server;
-      const io = socketIo(server, {
+      const server = app.server as HTTPServer;
+      const io = new SocketIOServer(server, {
         pingInterval: 2000,
         pingTimeout: 5000,
         cors: {
@@ -88,17 +92,17 @@ async function runServer() {
 
     await app.listen({port: Number(port), host: '0.0.0.0'});
     app.log.info(`Listening on port ${port}`);
+
+    process.once('SIGUSR2', async () => {
+      await app.close();
+      app.log.info('exiting...');
+      process.kill(process.pid, 'SIGUSR2');
+      app.log.info('exited');
+    });
   } catch (err) {
-    app.log.error(err);
+    console.error('Failed to start server:', err);
     process.exit(1);
   }
-
-  process.once('SIGUSR2', async () => {
-    await app.close();
-    app.log.info('exiting...');
-    process.kill(process.pid, 'SIGUSR2');
-    app.log.info('exited');
-  });
 }
 
 runServer();

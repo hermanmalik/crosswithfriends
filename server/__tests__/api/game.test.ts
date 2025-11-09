@@ -101,6 +101,98 @@ describe('Game API', () => {
       expect(body.size).toBe('15x15');
     });
 
+    it('should return "Unknown" author when puzzle info is missing author', async () => {
+      const mockGid = 'test-gid-123';
+      const mockPuzzleSolves = [
+        {
+          gid: mockGid,
+          pid: 'test-pid',
+          title: 'Test Puzzle',
+          time_taken_to_solve: 120,
+          size: '15x15',
+        },
+      ];
+      const mockPuzzleInfo = {
+        title: 'Test Puzzle',
+        description: 'Test Description',
+        // author is missing
+      };
+
+      (puzzleSolveModel.getPuzzleSolves as Mock).mockResolvedValue(mockPuzzleSolves);
+      (puzzleModel.getPuzzleInfo as Mock).mockResolvedValue(mockPuzzleInfo);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/game/${mockGid}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.author).toBe('Unknown');
+    });
+
+    it('should return "Unknown" author when puzzle info is null', async () => {
+      const mockGid = 'test-gid-123';
+      const mockPuzzleSolves = [
+        {
+          gid: mockGid,
+          pid: 'test-pid',
+          title: 'Test Puzzle',
+          time_taken_to_solve: 120,
+          size: '15x15',
+        },
+      ];
+
+      (puzzleSolveModel.getPuzzleSolves as Mock).mockResolvedValue(mockPuzzleSolves);
+      (puzzleModel.getPuzzleInfo as Mock).mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/game/${mockGid}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.author).toBe('Unknown');
+    });
+
+    it('should verify all response fields are present', async () => {
+      const mockGid = 'test-gid-123';
+      const mockPuzzleSolves = [
+        {
+          gid: mockGid,
+          pid: 'test-pid',
+          title: 'Test Puzzle',
+          time_taken_to_solve: 120,
+          size: '15x15',
+        },
+      ];
+      const mockPuzzleInfo = {
+        author: 'Test Author',
+        title: 'Test Puzzle',
+        description: 'Test Description',
+      };
+
+      (puzzleSolveModel.getPuzzleSolves as Mock).mockResolvedValue(mockPuzzleSolves);
+      (puzzleModel.getPuzzleInfo as Mock).mockResolvedValue(mockPuzzleInfo);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/game/${mockGid}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      // Verify all required fields are present
+      expect(body).toHaveProperty('gid');
+      expect(body).toHaveProperty('title');
+      expect(body).toHaveProperty('author');
+      expect(body).toHaveProperty('duration');
+      expect(body).toHaveProperty('size');
+      // Verify no extra fields
+      expect(Object.keys(body).length).toBe(5);
+    });
+
     it('should return 404 when game not found', async () => {
       (puzzleSolveModel.getPuzzleSolves as Mock).mockResolvedValue([]);
 

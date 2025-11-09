@@ -78,6 +78,148 @@ describe('Puzzle List API', () => {
       expect(body.statusCode).toBe(400);
     });
 
+    it('should handle missing filter parameters', async () => {
+      const mockPuzzles = [
+        {
+          pid: 'pid1',
+          content: {title: 'Puzzle 1'},
+          times_solved: 10,
+        },
+      ];
+
+      (puzzleModel.listPuzzles as Mock).mockResolvedValue(mockPuzzles);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=0&pageSize=10',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.puzzles).toHaveLength(1);
+      // Verify listPuzzles was called with default filters
+      expect(puzzleModel.listPuzzles).toHaveBeenCalled();
+    });
+
+    it('should return empty puzzle list response', async () => {
+      (puzzleModel.listPuzzles as Mock).mockResolvedValue([]);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=0&pageSize=10',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.puzzles).toEqual([]);
+    });
+
+    it('should handle nameOrTitleFilter parameter', async () => {
+      const mockPuzzles = [
+        {
+          pid: 'pid1',
+          content: {title: 'Test Puzzle'},
+          times_solved: 5,
+        },
+      ];
+
+      (puzzleModel.listPuzzles as Mock).mockResolvedValue(mockPuzzles);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=0&pageSize=10&filter[nameOrTitleFilter]=Test',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.puzzles).toHaveLength(1);
+      expect(puzzleModel.listPuzzles).toHaveBeenCalled();
+    });
+
+    it('should handle page=0 correctly', async () => {
+      const mockPuzzles = [
+        {
+          pid: 'pid1',
+          content: {title: 'Puzzle 1'},
+          times_solved: 10,
+        },
+      ];
+
+      (puzzleModel.listPuzzles as Mock).mockResolvedValue(mockPuzzles);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=0&pageSize=10',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.puzzles).toHaveLength(1);
+      // Verify offset calculation: page * pageSize = 0 * 10 = 0
+      expect(puzzleModel.listPuzzles).toHaveBeenCalledWith(
+        expect.any(Object),
+        10, // limit
+        0 // offset
+      );
+    });
+
+    it('should handle very large pageSize', async () => {
+      const mockPuzzles = Array.from({length: 100}, (_, i) => ({
+        pid: `pid${i}`,
+        content: {title: `Puzzle ${i}`},
+        times_solved: i,
+      }));
+
+      (puzzleModel.listPuzzles as Mock).mockResolvedValue(mockPuzzles);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=0&pageSize=1000',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.puzzles).toHaveLength(100);
+      expect(puzzleModel.listPuzzles).toHaveBeenCalledWith(
+        expect.any(Object),
+        1000, // limit
+        0 // offset
+      );
+    });
+
+    it('should handle negative page parameter', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=-1&pageSize=10',
+      });
+
+      // Negative numbers are still finite, so they pass the Number.isFinite check
+      // The actual behavior depends on the model implementation
+      expect(response.statusCode).toBeLessThan(500);
+    });
+
+    it('should handle missing page parameter', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?pageSize=10',
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.statusCode).toBe(400);
+    });
+
+    it('should handle missing pageSize parameter', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/puzzle_list?page=0',
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.statusCode).toBe(400);
+    });
+
     it('should handle errors from model', async () => {
       const error = new Error('Database error');
       (puzzleModel.listPuzzles as Mock).mockRejectedValue(error);

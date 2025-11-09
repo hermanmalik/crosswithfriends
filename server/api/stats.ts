@@ -1,8 +1,9 @@
-import {FastifyInstance} from 'fastify';
+import {FastifyInstance, FastifyRequest, FastifyReply} from 'fastify';
 import {ListPuzzleStatsResponse, ListPuzzleStatsRequest} from '@shared/types';
 import _ from 'lodash';
 import {getPuzzleSolves} from '../model/puzzle_solve';
 import type {SolvedPuzzleType} from '../model/puzzle_solve';
+import {createHttpError} from './errors';
 
 type PuzzleSummaryStat = {
   size: string;
@@ -39,46 +40,47 @@ export function computePuzzleStats(puzzle_solves: SolvedPuzzleType[]): PuzzleSum
 }
 
 async function statsRouter(fastify: FastifyInstance) {
-  fastify.post<{Body: ListPuzzleStatsRequest; Reply: ListPuzzleStatsResponse}>('/', async (request) => {
-    const gids = request.body.gids;
-    const startTime = Date.now();
+  fastify.post<{Body: ListPuzzleStatsRequest; Reply: ListPuzzleStatsResponse}>(
+    '/',
+    async (request: FastifyRequest<{Body: ListPuzzleStatsRequest}>, _reply: FastifyReply) => {
+      const {gids} = request.body;
+      const startTime = Date.now();
 
-    if (!Array.isArray(gids) || !_.every(gids, (it) => typeof it === 'string')) {
-      const error = new Error('gids are invalid') as Error & {statusCode: number};
-      error.statusCode = 400;
-      throw error;
+      if (!Array.isArray(gids) || !_.every(gids, (it) => typeof it === 'string')) {
+        throw createHttpError('gids are invalid', 400);
+      }
+
+      const puzzleSolves = await getPuzzleSolves(gids);
+      const puzzleStats = computePuzzleStats(puzzleSolves);
+      const stats = puzzleStats.map((stat) => ({
+        size: stat.size,
+        nPuzzlesSolved: stat.n_puzzles_solved,
+        avgSolveTime: stat.avg_solve_time,
+        bestSolveTime: stat.best_solve_time,
+        bestSolveTimeGameId: stat.best_solve_time_game,
+        avgCheckedSquareCount: stat.avg_checked_square_count,
+        avgRevealedSquareCount: stat.avg_revealed_square_count,
+      }));
+      const history = puzzleSolves.map((solve) => ({
+        puzzleId: solve.pid,
+        gameId: solve.gid,
+        title: solve.title,
+        size: solve.size,
+        dateSolved: solve.solved_time.format('YYYY-MM-DD'),
+        solveTime: solve.time_taken_to_solve,
+        checkedSquareCount: solve.checked_squares_count,
+        revealedSquareCount: solve.revealed_squares_count,
+      }));
+
+      const ms = Date.now() - startTime;
+      request.log.info({duration: ms, count: puzzleSolves.length}, 'overall /api/stats');
+
+      return {
+        stats,
+        history,
+      };
     }
-
-    const puzzleSolves = await getPuzzleSolves(gids as string[]);
-    const puzzleStats = computePuzzleStats(puzzleSolves);
-    const stats = puzzleStats.map((stat) => ({
-      size: stat.size,
-      nPuzzlesSolved: stat.n_puzzles_solved,
-      avgSolveTime: stat.avg_solve_time,
-      bestSolveTime: stat.best_solve_time,
-      bestSolveTimeGameId: stat.best_solve_time_game,
-      avgCheckedSquareCount: stat.avg_checked_square_count,
-      avgRevealedSquareCount: stat.avg_revealed_square_count,
-    }));
-    const history = puzzleSolves.map((solve) => ({
-      puzzleId: solve.pid,
-      gameId: solve.gid,
-      title: solve.title,
-      size: solve.size,
-      dateSolved: solve.solved_time.format('YYYY-MM-DD'),
-      solveTime: solve.time_taken_to_solve,
-      checkedSquareCount: solve.checked_squares_count,
-      revealedSquareCount: solve.revealed_squares_count,
-    }));
-
-    const ms = Date.now() - startTime;
-    request.log.info({duration: ms, count: puzzleSolves.length}, 'overall /api/stats');
-
-    return {
-      stats,
-      history,
-    };
-  });
+  );
 }
 
 export default statsRouter;

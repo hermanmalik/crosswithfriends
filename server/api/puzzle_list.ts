@@ -1,23 +1,33 @@
-import {FastifyInstance} from 'fastify';
+import {FastifyInstance, FastifyRequest, FastifyReply} from 'fastify';
 import {ListPuzzleResponse} from '@shared/types';
-import _ from 'lodash';
 import {listPuzzles} from '../model/puzzle';
-import {ListPuzzleRequestFilters} from '../../src/shared/types';
+import {ListPuzzleRequestFilters} from '@shared/types';
+import {createHttpError} from './errors';
+
+interface PuzzleListQuery {
+  page: string;
+  pageSize: string;
+  filter?: {
+    sizeFilter?: {
+      Mini?: string;
+      Standard?: string;
+    };
+    nameOrTitleFilter?: string;
+  };
+}
 
 async function puzzleListRouter(fastify: FastifyInstance) {
-  fastify.get<{Querystring: {page: string; pageSize: string; filter: any}; Reply: ListPuzzleResponse}>(
+  fastify.get<{Querystring: PuzzleListQuery; Reply: ListPuzzleResponse}>(
     '/',
-    async (request) => {
-      const page = Number.parseInt(request.query.page as string, 10);
-      const pageSize = Number.parseInt(request.query.pageSize as string, 10);
+    async (request: FastifyRequest<{Querystring: PuzzleListQuery}>, _reply: FastifyReply) => {
+      const page = Number.parseInt(request.query.page, 10);
+      const pageSize = Number.parseInt(request.query.pageSize, 10);
 
       if (!(Number.isFinite(page) && Number.isFinite(pageSize))) {
-        const error = new Error('page and pageSize should be integers') as Error & {statusCode: number};
-        error.statusCode = 400;
-        throw error;
+        throw createHttpError('page and pageSize should be integers', 400);
       }
 
-      const rawFilters = request.query.filter as any;
+      const rawFilters = request.query.filter;
       const filters: ListPuzzleRequestFilters = {
         sizeFilter: {
           Mini: rawFilters?.sizeFilter?.Mini === 'true',

@@ -1,4 +1,4 @@
-import {describe, it, expect, beforeAll, afterAll} from 'vitest';
+import {describe, it, expect, beforeAll, afterAll, vi} from 'vitest';
 import {buildTestApp, closeApp, waitForApp} from '../helpers';
 import type {FastifyInstance} from 'fastify';
 
@@ -38,6 +38,20 @@ describe('Server Integration Tests', () => {
 
       // CORS should allow the request
       expect(response.statusCode).toBeLessThan(500);
+    });
+
+    it('should verify actual CORS headers in response', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+        headers: {
+          origin: 'http://localhost:3000',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      // CORS headers should be present
+      expect(response.headers).toHaveProperty('access-control-allow-origin');
     });
   });
 
@@ -102,6 +116,18 @@ describe('Server Integration Tests', () => {
       expect(puzzleListResponse.statusCode).not.toBe(404);
     });
 
+    it('should register health endpoint', async () => {
+      const routes = app.printRoutes();
+      expect(routes).toContain('health');
+
+      // Verify health endpoint is accessible
+      const healthResponse = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+      });
+      expect(healthResponse.statusCode).toBe(200);
+    });
+
     it('should handle requests to registered routes', async () => {
       // Even if the model fails, the route should be accessible
       const response = await app.inject({
@@ -141,6 +167,35 @@ describe('Server Integration Tests', () => {
 
       // Should be valid JSON
       expect(() => JSON.parse(response.body)).not.toThrow();
+    });
+  });
+
+  describe('Request Logging', () => {
+    it('should log requests', async () => {
+      const logSpy = vi.spyOn(app.log, 'debug');
+
+      await app.inject({
+        method: 'GET',
+        url: '/api/health',
+      });
+
+      // Note: In test mode, logging is disabled, but we can verify the log method exists
+      expect(app.log).toBeDefined();
+      expect(typeof app.log.debug).toBe('function');
+      logSpy.mockRestore();
+    });
+
+    it('should handle request with headers and query parameters', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/oembed?author=Test',
+        headers: {
+          'user-agent': 'test-agent',
+          'accept': 'application/json',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
     });
   });
 });

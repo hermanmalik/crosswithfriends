@@ -19,21 +19,24 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
 
-    if (error.validation) {
+    if (error && typeof error === 'object' && 'validation' in error) {
       reply.code(400).send({
         statusCode: 400,
         error: 'Bad Request',
         message: 'Validation error',
-        validation: error.validation,
+        validation: (error as {validation: unknown}).validation,
       });
       return;
     }
 
-    const statusCode = error.statusCode || 500;
+    const errorObj = error as {statusCode?: number; name?: string; message?: string};
+    const statusCode = errorObj.statusCode || 500;
+    // Use 'Internal Server Error' if name is missing, undefined, or is the default 'Error'
+    const errorName = errorObj.name && errorObj.name !== 'Error' ? errorObj.name : 'Internal Server Error';
     reply.code(statusCode).send({
       statusCode,
-      error: error.name || 'Internal Server Error',
-      message: error.message || 'An error occurred',
+      error: errorName,
+      message: errorObj.message || 'An error occurred',
     });
   });
 
