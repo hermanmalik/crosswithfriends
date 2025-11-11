@@ -1,7 +1,7 @@
-import {FastifyInstance, FastifyRequest, FastifyReply} from 'fastify';
-import {AddPuzzleResponse, AddPuzzleRequest} from '@shared/types.js';
+import type {FastifyInstance, FastifyRequest, FastifyReply} from 'fastify';
+import type {AddPuzzleResponse, AddPuzzleRequest} from '@shared/types';
 
-import {addPuzzle} from '../model/puzzle.js';
+import {addPuzzle} from '../model/puzzle';
 
 async function puzzleRouter(fastify: FastifyInstance) {
   fastify.post<{Body: AddPuzzleRequest; Reply: AddPuzzleResponse}>(
